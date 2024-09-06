@@ -6,16 +6,7 @@ plugins {
 android {
     namespace = "com.example.smsleaker"
     compileSdk = 34
-    buildTypes {
-        release {
-            isMinifyEnabled=true
-            isShrinkResources=true
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
-        }
-    }
+
     defaultConfig {
         applicationId = "com.example.smsleaker"
         minSdk = 24
@@ -28,17 +19,20 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true // Enable code shrinking (R8/ProGuard)
+            isShrinkResources = true // Enable resource shrinking (depends on minifyEnabled)
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
         }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
     }
+
     kotlinOptions {
         jvmTarget = "1.8"
     }
