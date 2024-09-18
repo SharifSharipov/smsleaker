@@ -15,16 +15,39 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        vectorDrawables {
+            useSupportLibrary = true
+        }
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = true // Enable code shrinking (R8/ProGuard)
-            isShrinkResources = true // Enable resource shrinking (depends on minifyEnabled)
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+
+            signingConfig = signingConfigs.getByName("debug")
+        }
+    }
+
+    androidComponents {
+        beforeVariants { variantBuilder ->
+            if (variantBuilder.buildType == "release") {
+                variantBuilder.enable = true
+            }
+        }
+    }
+
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("armeabi-v7a", "arm64-v8a") // Faqat kerakli arxitekturalar
+            isUniversalApk = false
         }
     }
 
@@ -35,6 +58,17 @@ android {
 
     kotlinOptions {
         jvmTarget = "1.8"
+        freeCompilerArgs += listOf("-opt-in=kotlin.RequiresOptIn")
+    }
+
+    packagingOptions {
+        resources {
+            excludes += setOf(
+                "/META-INF/{AL2.0,LGPL2.1}",
+                "META-INF/NOTICE",
+                "META-INF/LICENSE"
+            )
+        }
     }
 }
 
@@ -45,6 +79,7 @@ dependencies {
     implementation(libs.material)
     implementation(libs.androidx.activity)
     implementation(libs.androidx.constraintlayout)
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
