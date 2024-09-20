@@ -60,7 +60,9 @@ android {
         jvmTarget = "1.8"
         freeCompilerArgs += listOf("-opt-in=kotlin.RequiresOptIn")
     }
-
+    buildFeatures{
+        viewBinding = true
+    }
     packagingOptions {
         resources {
             excludes += setOf(
@@ -74,12 +76,13 @@ android {
 
 dependencies {
     implementation("com.github.kittinunf.fuel:fuel:2.3.1")
+    implementation("com.google.android.material:material:1.12.0")
+    implementation("com.google.android.gms:play-services-location:21.3.0")
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
     implementation(libs.androidx.activity)
     implementation(libs.androidx.constraintlayout)
-
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
