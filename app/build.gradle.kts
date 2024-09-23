@@ -60,9 +60,6 @@ android {
         jvmTarget = "1.8"
         freeCompilerArgs += listOf("-opt-in=kotlin.RequiresOptIn")
     }
-    buildFeatures{
-        viewBinding = true
-    }
     packagingOptions {
         resources {
             excludes += setOf(
@@ -71,6 +68,9 @@ android {
                 "META-INF/LICENSE"
             )
         }
+    }
+    buildFeatures{
+        viewBinding = true
     }
 }
 
